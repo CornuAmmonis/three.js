@@ -437,6 +437,12 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 	};
 
+	this.supportsDrawBuffers = function () {
+
+		return extensions.get( 'WEBGL_draw_buffers' );
+
+	};
+
 	this.getMaxAnisotropy = ( function () {
 
 		var value;
@@ -3266,6 +3272,16 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 	}
 
+	function checkAndUpdateRenderTargetMipMap ( renderTarget ) {
+
+		if (renderTarget && renderTarget.generateMipmaps && renderTarget.minFilter !== THREE.NearestFilter && renderTarget.minFilter !== THREE.LinearFilter) {
+
+			updateRenderTargetMipmap(renderTarget);
+
+		}
+
+	}
+
 	// Rendering
 
 	this.render = function ( scene, camera, renderTarget, forceClear ) {
@@ -3338,7 +3354,15 @@ THREE.WebGLRenderer = function ( parameters ) {
 		_this.info.render.faces = 0;
 		_this.info.render.points = 0;
 
-		this.setRenderTarget( renderTarget );
+		if ( Array.isArray( renderTarget ) ) {
+
+			this.setMultipleRenderTargets( renderTarget );
+
+		} else {
+
+			this.setRenderTarget( renderTarget );
+
+		}
 
 		if ( this.autoClear || forceClear ) {
 
@@ -3400,10 +3424,17 @@ THREE.WebGLRenderer = function ( parameters ) {
 		lensFlarePlugin.render( scene, camera, _currentWidth, _currentHeight );
 
 		// Generate mipmap if we're using any kind of mipmap filtering
+		if ( Array.isArray( renderTarget ) ) {
 
-		if ( renderTarget && renderTarget.generateMipmaps && renderTarget.minFilter !== THREE.NearestFilter && renderTarget.minFilter !== THREE.LinearFilter ) {
+			renderTarget.forEach( function ( tgt ) {
 
-			updateRenderTargetMipmap( renderTarget );
+				checkAndUpdateRenderTargetMipMap(renderTarget);
+
+			});
+
+		} else {
+
+			checkAndUpdateRenderTargetMipMap(renderTarget);
 
 		}
 
@@ -5992,10 +6023,16 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 	// Render targets
 
-	function setupFrameBuffer ( framebuffer, renderTarget, textureTarget ) {
+	function setupFrameBuffer ( framebuffer, renderTarget, textureTarget, attachmentNumber ) {
 
 		_gl.bindFramebuffer( _gl.FRAMEBUFFER, framebuffer );
-		_gl.framebufferTexture2D( _gl.FRAMEBUFFER, _gl.COLOR_ATTACHMENT0, textureTarget, renderTarget.__webglTexture, 0 );
+		_gl.framebufferTexture2D(
+				_gl.FRAMEBUFFER,
+				_gl.COLOR_ATTACHMENT0 + (attachmentNumber || 0),
+				textureTarget,
+				renderTarget.__webglTexture,
+				0
+		);
 
 	}
 
@@ -6063,7 +6100,7 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 					_gl.texImage2D( _gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, glFormat, renderTarget.width, renderTarget.height, 0, glFormat, glType, null );
 
-					setupFrameBuffer( renderTarget.__webglFramebuffer[ i ], renderTarget, _gl.TEXTURE_CUBE_MAP_POSITIVE_X + i );
+					setupFrameBuffer( renderTarget.__webglFramebuffer[ i ], renderTarget, _gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, renderTarget.attachmentNumber );
 					setupRenderBuffer( renderTarget.__webglRenderbuffer[ i ], renderTarget );
 
 				}
@@ -6089,7 +6126,7 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 				_gl.texImage2D( _gl.TEXTURE_2D, 0, glFormat, renderTarget.width, renderTarget.height, 0, glFormat, glType, null );
 
-				setupFrameBuffer( renderTarget.__webglFramebuffer, renderTarget, _gl.TEXTURE_2D );
+				setupFrameBuffer( renderTarget.__webglFramebuffer, renderTarget, _gl.TEXTURE_2D, renderTarget.attachmentNumber );
 
 				if ( renderTarget.shareDepthFrom ) {
 
@@ -6173,6 +6210,77 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 		_currentWidth = width;
 		_currentHeight = height;
+
+	};
+
+	function makeColorAttachmentArray( size ) {
+
+		var array = []
+		for (var ii = 0; ii < size; ++ii) {
+
+			array.push(_gl.COLOR_ATTACHMENT0 + ii);
+
+		}
+		return array;
+
+	}
+
+	this.setMultipleRenderTargets = function ( renderTargets ) {
+
+		if ( Array.isArray( renderTargets ) ) {
+
+			var numAttachments = renderTargets.reduce( function( maxAttachmentNumber, renderTarget ) {
+
+				if ( !renderTarget.attachmentNumber ) {
+
+					throw "Attempt to render target without attachment number";
+
+				}
+
+				return Math.max( renderTarget.attachmentNumber + 1 , maxAttachmentNumber );
+
+			}, 0);
+
+			if ( numAttachments == 0 ) {
+
+				this.setRenderTarget( null );
+
+			} else {
+
+				var extension = extensions.get( "WEBGL_draw_buffers" );
+
+				if (!extension) {
+
+					throw "WEBGL_draw_buffers extension is unsupported";
+
+				} else {
+
+					var maxDrawingBuffers = _gl.getParameter(extension.MAX_DRAW_BUFFERS_WEBGL);
+					var maxColorAttachments = _gl.getParameter(extension.MAX_COLOR_ATTACHMENTS_WEBGL);
+					var maxAllowedAttachments = Math.min(maxDrawingBuffers, maxColorAttachments);
+
+					if ( numAttachments > maxAllowedAttachments ) {
+
+						throw 'Number of attachments exceeds maximum of ' + maxAllowedAttachments;
+
+					} else {
+
+						renderTargets.forEach( function( renderTarget ){
+
+							_this.setRenderTarget( renderTarget );
+
+						});
+
+						extension.drawBuffersWEBGL( makeColorAttachmentArray( numAttachments ) );
+					}
+				}
+			}
+
+		} else {
+
+			this.setRenderTarget( renderTargets );
+
+		}
 
 	};
 

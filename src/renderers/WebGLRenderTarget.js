@@ -31,6 +31,8 @@ THREE.WebGLRenderTarget = function ( width, height, options ) {
 
 	this.shareDepthFrom = null;
 
+	this.attachmentNumber = null;
+
 };
 
 THREE.WebGLRenderTarget.prototype = {
@@ -68,6 +70,8 @@ THREE.WebGLRenderTarget.prototype = {
 		tmp.generateMipmaps = this.generateMipmaps;
 
 		tmp.shareDepthFrom = this.shareDepthFrom;
+
+		tmp.attachmentNumber = this.attachmentNumber;
 
 		return tmp;
 
