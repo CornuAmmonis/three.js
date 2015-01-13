@@ -6231,7 +6231,7 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 			var numAttachments = renderTargets.reduce( function( maxAttachmentNumber, renderTarget ) {
 
-				if ( !renderTarget.attachmentNumber ) {
+				if ( renderTarget.attachmentNumber === null ) {
 
 					throw "Attempt to render target without attachment number";
 
