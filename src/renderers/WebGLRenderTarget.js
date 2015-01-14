@@ -32,6 +32,7 @@ THREE.WebGLRenderTarget = function ( width, height, options ) {
 	this.shareDepthFrom = null;
 
 	this.attachmentNumber = null;
+	this.shareFrameBufferFrom = null;
 
 };
 
